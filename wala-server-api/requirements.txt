@@ -1,0 +1,20 @@
+# Framework Base
+django==5.0.2
+djangorestframework==3.14.0
+django-cors-headers==4.3.1  # Vital para que tu frontend (React/Vue/etc) pueda consultar la API
+
+# Base de Datos y Configuración
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+dj-database-url==2.1.0      # Para parsear la URL de la DB en el docker-compose
+
+# Asincronía y Workers (El motor para la IA)
+celery==5.3.6
+redis==5.0.1
+
+# Utilidades
+requests==2.31.0            # Para las llamadas a las APIs de WhatsApp/OpenAI
+drf-spectacular==0.27.1     # Para autogenerar la documentación de tu API (Swagger)
+
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0

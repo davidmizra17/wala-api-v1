@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    env_file:
+        - .envs/.local/.postgres
+    ports:
+      - "5432:5432"
+
+  web:
+    build: ./wala-server-api
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./wala-server-api:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .envs/.local/.postgres
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      - db
+
+  redis:
+    image: redis:7-alpine
