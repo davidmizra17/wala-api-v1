@@ -2,6 +2,49 @@ from rest_framework import serializers
 
 from .models import Client, Message
 
+from rest_framework import serializers
+
+
+class WebhookInputSerializer(serializers.Serializer):
+    """
+    Data Transfer Object (DTO) for incoming communication signals.
+
+    This serializer normalizes data from different sources (WhatsApp, Instagram, Postman)
+    before it reaches the service layer.
+    """
+
+    external_id = serializers.CharField(
+        max_length=128,
+        help_text="The unique platform identifier (e.g., phone number or Meta UID)."
+    )
+    text = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="The text content of the message."
+    )
+    platform = serializers.ChoiceField(
+        choices=['whatsapp', 'instagram'],
+        default='whatsapp'
+    )
+    media_url = serializers.URLField(
+        required=False,
+        allow_null=True,
+        help_text="URL of the media attachment if present."
+    )
+    name = serializers.CharField(
+        required=False,
+        max_length=255,
+        help_text="The display name provided by the platform webhook."
+    )
+
+    def validate_external_id(self, value):
+        """
+        Custom validation to ensure the ID is not just whitespace
+        and follows basic sanity checks.
+        """
+        if not value.strip():
+            raise serializers.ValidationError("external_id cannot be empty.")
+        return value.strip()
 
 class ClientSerializer(serializers.ModelSerializer):
     class Meta:
