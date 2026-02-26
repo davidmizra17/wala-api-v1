@@ -4,9 +4,9 @@ services:
   db:
     image: postgres:15
     volumes:
-      - ./data/db:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     env_file:
-        - .envs/.local/.postgres
+        - .env
     ports:
       - "5432:5432"
 
@@ -18,7 +18,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .envs/.local/.postgres
+      - .env
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
@@ -26,3 +26,6 @@ services:
 
   redis:
     image: redis:7-alpine
+
+volumes:
+  postgres_data:
