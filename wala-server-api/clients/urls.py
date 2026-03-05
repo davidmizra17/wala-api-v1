@@ -1,14 +1,15 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
+from .views import WebhookIngestView
 
-from .views import ClientViewSet, MessageIngestView
+# from .views import ClientViewSet, MessageIngestView
 
-router = DefaultRouter()
-router.register('clients', ClientViewSet, basename='client')
+# router = DefaultRouter()
+# router.register('clients', ClientViewSet, basename='client')
 
 urlpatterns = [
-    path('messages/ingest/', MessageIngestView.as_view(), name='message-ingest'),
+    path('webhook/', WebhookIngestView.as_view(), name='webhook-ingest'),
 ]
 
-urlpatterns += router.urls
+# urlpatterns += router.urls
 
