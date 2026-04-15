@@ -1,2 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Django
+*.sqlite3
+*.log
+media/
+staticfiles/
+
+# Environment
 .env
-.idea
+.env.*
+!.env.example
+
+# Editors / IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Claude Code internal
+.claude/
+.playwright-mcp/
