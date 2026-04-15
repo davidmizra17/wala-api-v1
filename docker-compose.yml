@@ -6,9 +6,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     env_file:
-        - .env
+      - .env
     ports:
       - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
 
   web:
     build: ./wala-server-api
@@ -20,12 +25,27 @@ services:
     env_file:
       - .env
     environment:
+      - DJANGO_SETTINGS_MODULE=core.settings.local
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
+      - redis
 
-  redis:
-    image: redis:7-alpine
+  celery:
+    build: ./wala-server-api
+    command: celery -A core worker -l info
+    volumes:
+      - ./wala-server-api:/app
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings.local
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
 
 volumes:
   postgres_data:
