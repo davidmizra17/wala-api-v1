@@ -50,4 +50,10 @@ def register_interaction(external_id, text, direction='inbound', platform='whats
         is_read=False if direction == 'inbound' else True
     )
 
+    # 3. Queue AI processing for inbound messages only
+    # on_commit ensures the task fires only after the DB transaction commits
+    if direction == 'inbound':
+        from .tasks import process_inbound_message
+        transaction.on_commit(lambda: process_inbound_message.delay(message.id))
+
     return client, message

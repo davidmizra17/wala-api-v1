@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,10 +13,23 @@ class WebhookIngestView(APIView):
     """
     API View to handle incoming signals from messaging platforms.
 
-    This view serves as the entry point for webhooks. It validates
-    the payload using a serializer and delegates business logic
-    to the service layer.
+    GET  — Meta verification handshake (Hub Challenge).
+    POST — Ingest a message from WhatsApp/Instagram.
     """
+
+    @extend_schema(
+        summary="Meta webhook verification (Hub Challenge)",
+        responses={200: {"description": "Challenge echoed back to Meta"}}
+    )
+    def get(self, request, *args, **kwargs):
+        mode = request.query_params.get('hub.mode')
+        token = request.query_params.get('hub.verify_token')
+        challenge = request.query_params.get('hub.challenge')
+
+        if mode == 'subscribe' and token == settings.WHATSAPP_VERIFY_TOKEN:
+            return HttpResponse(challenge, content_type='text/plain', status=200)
+
+        return HttpResponse('Forbidden', status=403)
 
     @extend_schema(
         summary="Ingest message from platform",
