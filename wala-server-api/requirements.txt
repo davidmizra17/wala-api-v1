@@ -12,9 +12,13 @@ dj-database-url==2.1.0      # Para parsear la URL de la DB en el docker-compose
 celery==5.3.6
 redis==5.0.1
 
+# Autenticación
+djangorestframework-simplejwt==5.3.1
+
 # Utilidades
 requests==2.31.0            # Para las llamadas a las APIs de WhatsApp/OpenAI
 drf-spectacular==0.27.1     # Para autogenerar la documentación de tu API (Swagger)
+django-model-utils==5.0.0   # TimeStampedModel y otros mixins útiles
 
 psycopg2-binary==2.9.9
 dj-database-url==2.1.0
