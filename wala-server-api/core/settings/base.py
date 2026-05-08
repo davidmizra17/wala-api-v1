@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "conversations",
     "channels",
     "crm",
+    "reporting",
 ]
 
 MIDDLEWARE = [

@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/v1/conversations/", include("conversations.urls")),
     path("api/v1/crm/", include("crm.urls")),
     path("api/v1/channels/", include("channels.urls")),
+    path("api/v1/reporting/", include("reporting.urls")),
     # Meta webhook (WhatsApp + Instagram)
     path("webhooks/meta/", WebhookIngestView.as_view(), name="meta-webhook"),
     # API Docs
