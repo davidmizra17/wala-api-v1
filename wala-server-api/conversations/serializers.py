@@ -18,6 +18,10 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "meta_message_id", "created"]
 
 
+class SendMessageSerializer(serializers.Serializer):
+    text = serializers.CharField(min_length=1, max_length=4096)
+
+
 class ConversationSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
 
