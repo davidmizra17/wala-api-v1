@@ -8,26 +8,37 @@ def process_inbound_message(self, message_id: str):
     """
     Background task triggered after every inbound message is persisted.
 
-    Responsibilities (filled in as AI layer is implemented):
-      1. Classify intent (Query / Order / Support) via LLM.
-      2. If conversation is in bot_handling state, generate and send reply.
-      3. If low-confidence or sensitive topic, trigger handoff to human.
+    Loads the message, calls the Gemini AI provider to generate a response,
+    then either sends the bot reply or triggers auto-handoff if confidence is low.
 
     Args:
         message_id: UUID of the conversations.Message record.
     """
-    from .models import Message
+    from .models import Conversation, Message
+    from .services import create_bot_outbound_message, handoff_to_agent
 
     try:
-        message = Message.objects.select_related("conversation").get(pk=message_id)
+        message = Message.objects.select_related(
+            "conversation__contact",
+            "conversation__tenant",
+        ).get(pk=message_id)
     except Message.DoesNotExist:
         return
 
-    # --- AI pipeline will be wired here ---
-    # intent = ai_service.classify_intent(message.text)
-    # if message.conversation.status == Conversation.Status.BOT_HANDLING:
-    #     response_text = ai_service.generate_response(message)
-    #     send_outbound_message.delay(message.conversation_id, response_text)
+    conversation = message.conversation
+    if conversation.status != Conversation.Status.BOT_HANDLING:
+        return  # Human already handling; don't interfere
+
+    try:
+        from ai.services import get_ai_response
+        response = get_ai_response(message)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+    if response.should_handoff:
+        handoff_to_agent(conversation, agent=None)
+    else:
+        create_bot_outbound_message(conversation, response.text)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=15)

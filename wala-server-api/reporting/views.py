@@ -3,10 +3,12 @@ from datetime import timedelta
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.middleware import get_current_tenant
 from conversations.models import Conversation, Message
 from crm.models import Deal
 
@@ -69,6 +71,13 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        tenant = get_current_tenant()
+        if tenant is None:
+            return Response(
+                {"detail": "Tenant context required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         days = max(1, int(request.query_params.get("days", 7)))
         funnel_days = max(1, int(request.query_params.get("funnel_days", 30)))
 
@@ -80,12 +89,12 @@ class DashboardView(APIView):
 
         return Response(
             {
-                "kpis": self._kpis(period_start, prev_start, sparkline_start),
-                "message_volume": self._message_volume(sparkline_start),
-                "activity": self._activity(now),
-                "bot_resolution": self._bot_resolution(period_start),
-                "by_channel": self._by_channel(period_start),
-                "funnel": self._funnel(funnel_start, funnel_days),
+                "kpis": self._kpis(period_start, prev_start, sparkline_start, tenant),
+                "message_volume": self._message_volume(sparkline_start, tenant),
+                "activity": self._activity(now, tenant),
+                "bot_resolution": self._bot_resolution(period_start, tenant),
+                "by_channel": self._by_channel(period_start, tenant),
+                "funnel": self._funnel(funnel_start, funnel_days, tenant),
             }
         )
 
@@ -93,19 +102,20 @@ class DashboardView(APIView):
     # KPIs
     # -------------------------------------------------------------------------
 
-    def _kpis(self, period_start, prev_start, sparkline_start):
+    def _kpis(self, period_start, prev_start, sparkline_start, tenant):
         # Conversations
-        conv_curr = Conversation.objects.filter(created__gte=period_start).count()
+        conv_curr = Conversation.objects.filter(tenant=tenant, created__gte=period_start).count()
         conv_prev = Conversation.objects.filter(
-            created__gte=prev_start, created__lt=period_start
+            tenant=tenant, created__gte=prev_start, created__lt=period_start
         ).count()
 
         # Active deals — current snapshot count; change rate based on new deals in period
-        active_now = Deal.objects.filter(stage__in=_ACTIVE_STAGES).count()
+        active_now = Deal.objects.filter(tenant=tenant, stage__in=_ACTIVE_STAGES).count()
         new_active_curr = Deal.objects.filter(
-            stage__in=_ACTIVE_STAGES, created__gte=period_start
+            tenant=tenant, stage__in=_ACTIVE_STAGES, created__gte=period_start
         ).count()
         new_active_prev = Deal.objects.filter(
+            tenant=tenant,
             stage__in=_ACTIVE_STAGES,
             created__gte=prev_start,
             created__lt=period_start,
@@ -113,11 +123,11 @@ class DashboardView(APIView):
 
         # Avg response time — computed in Python after prefetching messages
         curr_convos = list(
-            Conversation.objects.filter(created__gte=period_start).prefetch_related("messages")
+            Conversation.objects.filter(tenant=tenant, created__gte=period_start).prefetch_related("messages")
         )
         prev_convos = list(
             Conversation.objects.filter(
-                created__gte=prev_start, created__lt=period_start
+                tenant=tenant, created__gte=prev_start, created__lt=period_start
             ).prefetch_related("messages")
         )
         resp_curr = _avg_response_seconds(curr_convos)
@@ -125,15 +135,15 @@ class DashboardView(APIView):
         resp_change = _pct_change(resp_curr, resp_prev) if resp_curr is not None else None
 
         # Conversion rate
-        total_curr = Deal.objects.filter(created__gte=period_start).count()
+        total_curr = Deal.objects.filter(tenant=tenant, created__gte=period_start).count()
         won_curr = Deal.objects.filter(
-            created__gte=period_start, stage=Deal.Stage.WON
+            tenant=tenant, created__gte=period_start, stage=Deal.Stage.WON
         ).count()
         total_prev = Deal.objects.filter(
-            created__gte=prev_start, created__lt=period_start
+            tenant=tenant, created__gte=prev_start, created__lt=period_start
         ).count()
         won_prev = Deal.objects.filter(
-            created__gte=prev_start, created__lt=period_start, stage=Deal.Stage.WON
+            tenant=tenant, created__gte=prev_start, created__lt=period_start, stage=Deal.Stage.WON
         ).count()
         rate_curr = round(won_curr / total_curr * 100, 1) if total_curr else 0.0
         rate_prev = round(won_prev / total_prev * 100, 1) if total_prev else 0.0
@@ -142,13 +152,15 @@ class DashboardView(APIView):
             "conversations": {
                 "value": conv_curr,
                 "change_pct": _pct_change(conv_curr, conv_prev),
-                "sparkline": _daily_counts(Conversation.objects.all(), sparkline_start),
+                "sparkline": _daily_counts(
+                    Conversation.objects.filter(tenant=tenant), sparkline_start
+                ),
             },
             "active_deals": {
                 "value": active_now,
                 "change_pct": _pct_change(new_active_curr, new_active_prev),
                 "sparkline": _daily_counts(
-                    Deal.objects.filter(stage__in=_ACTIVE_STAGES), sparkline_start
+                    Deal.objects.filter(tenant=tenant, stage__in=_ACTIVE_STAGES), sparkline_start
                 ),
             },
             "avg_response_time_secs": {
@@ -167,9 +179,9 @@ class DashboardView(APIView):
     # Message volume (last 14 days, bot vs human per day)
     # -------------------------------------------------------------------------
 
-    def _message_volume(self, since):
+    def _message_volume(self, since, tenant):
         rows = (
-            Message.objects.filter(created__gte=since)
+            Message.objects.filter(tenant=tenant, created__gte=since)
             .annotate(date=TruncDate("created"))
             .values("date")
             .annotate(
@@ -192,9 +204,9 @@ class DashboardView(APIView):
     # Live activity feed (10 most recently updated conversations)
     # -------------------------------------------------------------------------
 
-    def _activity(self, now):
+    def _activity(self, now, tenant):
         recent = (
-            Conversation.objects.select_related("contact", "channel")
+            Conversation.objects.filter(tenant=tenant).select_related("contact", "channel")
             .prefetch_related("messages")
             .order_by("-modified")[:10]
         )
@@ -220,12 +232,12 @@ class DashboardView(APIView):
     # Bot resolution (all conversations in period split by human involvement)
     # -------------------------------------------------------------------------
 
-    def _bot_resolution(self, since):
+    def _bot_resolution(self, since, tenant):
         human_sent = Message.objects.filter(
             conversation=OuterRef("pk"),
             sender_type=Message.SenderType.HUMAN,
         )
-        convos = Conversation.objects.filter(created__gte=since)
+        convos = Conversation.objects.filter(tenant=tenant, created__gte=since)
         bot_count = convos.filter(~Exists(human_sent)).count()
         human_count = convos.filter(Exists(human_sent)).count()
         total = bot_count + human_count
@@ -246,9 +258,9 @@ class DashboardView(APIView):
     # By channel (conversation count per platform in period)
     # -------------------------------------------------------------------------
 
-    def _by_channel(self, since):
+    def _by_channel(self, since, tenant):
         rows = (
-            Conversation.objects.filter(created__gte=since, channel__isnull=False)
+            Conversation.objects.filter(tenant=tenant, created__gte=since, channel__isnull=False)
             .values("channel__platform")
             .annotate(count=Count("id"))
             .order_by("-count")
@@ -267,9 +279,9 @@ class DashboardView(APIView):
     # Deal funnel (count + value per stage in period)
     # -------------------------------------------------------------------------
 
-    def _funnel(self, since, funnel_days):
+    def _funnel(self, since, funnel_days, tenant):
         rows = (
-            Deal.objects.filter(created__gte=since, stage__in=_FUNNEL_STAGES)
+            Deal.objects.filter(tenant=tenant, created__gte=since, stage__in=_FUNNEL_STAGES)
             .values("stage")
             .annotate(count=Count("id"), total_value=Sum("value"))
         )

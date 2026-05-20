@@ -1,8 +1,9 @@
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.middleware import get_current_tenant
 from .models import Deal, Order, Pipeline, Task
 from .serializers import (
     BoardSerializer,
@@ -58,13 +59,20 @@ class BoardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        pipeline = Pipeline.objects.order_by("created").first()
+        tenant = get_current_tenant()
+        if tenant is None:
+            return Response(
+                {"detail": "Tenant context required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        pipeline = Pipeline.objects.filter(tenant=tenant).order_by("created").first()
 
         if pipeline is None:
             return Response({"detail": "No pipeline configured for this tenant."}, status=404)
 
         deals = (
-            Deal.objects.filter(pipeline=pipeline)
+            Deal.objects.filter(pipeline=pipeline, tenant=tenant)
             .select_related("contact")
             .prefetch_related("tasks")
             .order_by("-created")

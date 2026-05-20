@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "channels",
     "crm",
     "reporting",
+    "ai",
 ]
 
 MIDDLEWARE = [
@@ -111,3 +112,8 @@ CELERY_TIMEZONE = TIME_ZONE
 # Meta / WhatsApp Business API
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
+
+# AI provider
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+DEFAULT_AI_PROVIDER = os.environ.get("DEFAULT_AI_PROVIDER", "gemini")
+DEFAULT_LLM_MODEL = os.environ.get("DEFAULT_LLM_MODEL", "gemini-1.5-flash")

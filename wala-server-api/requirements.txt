@@ -15,6 +15,9 @@ redis==5.0.1
 # Autenticación
 djangorestframework-simplejwt==5.3.1
 
+# AI
+google-generativeai==0.7.2
+
 # Utilidades
 requests==2.31.0            # Para las llamadas a las APIs de WhatsApp/OpenAI
 drf-spectacular==0.27.1     # Para autogenerar la documentación de tu API (Swagger)
